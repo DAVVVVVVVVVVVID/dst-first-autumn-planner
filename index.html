@@ -150,6 +150,47 @@
   }
   button.pill-btn:hover { background: var(--orange-deep); }
   button.pill-btn:active { transform: scale(0.96); }
+  button.pill-btn.secondary {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  button.pill-btn.secondary:hover { background: rgba(255,255,255,0.28); }
+  button.pill-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .template-panel { margin-bottom: 20px; }
+  .template-intro {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .template-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .template-card .t-name {
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .template-card .t-desc {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    flex: 1;
+  }
+  .template-card button.pill-btn { align-self: flex-start; }
 
   .stats-row {
     display: grid;
@@ -457,6 +498,7 @@
       <span>房间:</span>
       <input type="text" id="roomInput" readonly />
       <button class="pill-btn" id="copyLinkBtn">复制邀请链接</button>
+      <button class="pill-btn secondary" id="templateBtn">📋 模板</button>
       <span id="playerLabel"></span>
     </div>
     <div class="online-row" id="onlineRow"></div>
@@ -473,6 +515,8 @@
     </div>
   </div>
 
+  <div id="templatePanel"></div>
+
   <div class="categories" id="categories"></div>
 
   <footer class="note">数据实时同步给同房间的所有人 · 分享上方链接给队友即可一起协作</footer>
@@ -484,31 +528,40 @@ const SUPABASE_KEY = "sb_publishable_cps3c_C2OJ4ph6R81PEang_o8SvPi9J";
 const CATEGORIES_TABLE = "categories";
 const TASKS_TABLE = "tasks";
 
-const DEFAULT_SEED = [
+// 模板注册表:以后新增模板(比如"第一个冬天"、"洞穴探索")直接往这个数组里加一项即可
+const TEMPLATES = [
   {
-    icon: "🗺️", name: "探索地图",
-    required: ["猪王", "牛群", "草原", "蜘蛛巢", "岩石区域", "兔子区", "发条怪物", "海象平原", "格罗姆"],
-    optional: ["沼泽", "墓地", "蜂巢", "洞穴"]
-  },
-  {
-    icon: "🌱", name: "资源移植",
-    required: ["浆果丛移植", "树枝移植", "种树", "蜘蛛巢 ×3", "猪人房 ×6", "鸟笼"],
-    optional: ["草移植(有草原可以不进行)", "蜂箱", "兔人房"]
-  },
-  {
-    icon: "🏠", name: "家具必需品",
-    required: ["火坑", "晾肉架", "一本科技", "二本科技", "烹饪锅 ×3", "冰箱 ×3", "帐篷", "箱子及其分类"],
-    optional: ["海上科技"]
-  },
-  {
-    icon: "⚔️", name: "装备",
-    required: ["猪皮头套"],
-    optional: ["矿工帽", "提灯"]
-  },
-  {
-    icon: "❄️", name: "过冬准备",
-    required: ["牛角帽 ×3", "暖石 ×6", "充足燃料"],
-    optional: []
+    id: "first-autumn",
+    icon: "🍂",
+    name: "第一个秋天",
+    description: "新手团队建立基地、稳定食物、准备过冬的核心任务清单",
+    categories: [
+      {
+        icon: "🗺️", name: "探索地图",
+        required: ["猪王", "牛群", "草原", "蜘蛛巢", "岩石区域", "兔子区", "发条怪物", "海象平原", "格罗姆"],
+        optional: ["沼泽", "墓地", "蜂巢", "洞穴"]
+      },
+      {
+        icon: "🌱", name: "资源移植",
+        required: ["浆果丛移植", "树枝移植", "种树", "蜘蛛巢 ×3", "猪人房 ×6", "鸟笼"],
+        optional: ["草移植(有草原可以不进行)", "蜂箱", "兔人房"]
+      },
+      {
+        icon: "🏠", name: "家具必需品",
+        required: ["火坑", "晾肉架", "一本科技", "二本科技", "烹饪锅 ×3", "冰箱 ×3", "帐篷", "箱子及其分类"],
+        optional: ["海上科技"]
+      },
+      {
+        icon: "⚔️", name: "装备",
+        required: ["猪皮头套"],
+        optional: ["矿工帽", "提灯"]
+      },
+      {
+        icon: "❄️", name: "过冬准备",
+        required: ["牛角帽 ×3", "暖石 ×6", "充足燃料"],
+        optional: []
+      }
+    ]
   }
 ];
 
@@ -525,6 +578,7 @@ let editingCategoryId = null;
 let editingTaskId = null;
 let addingTaskGroup = null; // "<categoryId>:<grp>"
 let addingCategory = false;
+let templatePanelOpen = false;
 
 function getOrCreateRoom() {
   const url = new URL(window.location.href);
@@ -583,8 +637,81 @@ function makeIconBtn(symbol, title, onClick) {
 }
 
 function renderApp() {
+  renderTemplatePanel();
   renderCategoriesGrid();
   renderStats();
+}
+
+function renderTemplatePanel() {
+  const container = document.getElementById("templatePanel");
+  container.innerHTML = "";
+  if (!templatePanelOpen && categories.length !== 0) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "template-panel";
+
+  const intro = document.createElement("div");
+  intro.className = "template-intro";
+  intro.textContent = categories.length === 0
+    ? "这个房间还没有任务卡片,选一个模板快速开始,或者在下面自己新建分类:"
+    : "选一个模板,把它的卡片添加到当前房间(会追加在现有卡片后面):";
+  wrap.appendChild(intro);
+
+  const grid = document.createElement("div");
+  grid.className = "template-grid";
+  TEMPLATES.forEach(tpl => grid.appendChild(buildTemplateCard(tpl)));
+  wrap.appendChild(grid);
+
+  container.appendChild(wrap);
+}
+
+function buildTemplateCard(tpl) {
+  const card = document.createElement("div");
+  card.className = "template-card";
+
+  const name = document.createElement("div");
+  name.className = "t-name";
+  name.textContent = `${tpl.icon} ${tpl.name}`;
+
+  const desc = document.createElement("div");
+  desc.className = "t-desc";
+  desc.textContent = tpl.description;
+
+  const btn = document.createElement("button");
+  btn.className = "pill-btn";
+  btn.type = "button";
+  btn.textContent = "使用此模板";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "添加中...";
+    await applyTemplate(tpl);
+    templatePanelOpen = false;
+  });
+
+  card.appendChild(name);
+  card.appendChild(desc);
+  card.appendChild(btn);
+  return card;
+}
+
+async function applyTemplate(template) {
+  let sortBase = categories.length ? Math.max(...categories.map(c => c.sort_order)) + 1 : 0;
+  for (let i = 0; i < template.categories.length; i++) {
+    const def = template.categories[i];
+    const { data: catRow, error } = await client.from(CATEGORIES_TABLE)
+      .insert({ room, icon: def.icon, name: def.name, sort_order: sortBase + i }).select().single();
+    if (error || !catRow) { console.error(error); continue; }
+    categories.push(catRow);
+    const rows = [];
+    def.required.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "required", label, sort_order: idx }));
+    def.optional.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "optional", label, sort_order: idx }));
+    if (rows.length) {
+      const { data: taskRows, error: taskErr } = await client.from(TASKS_TABLE).insert(rows).select();
+      if (taskErr) console.error(taskErr);
+      else if (taskRows) tasks.push(...taskRows);
+    }
+  }
+  renderApp();
 }
 
 function renderCategoriesGrid() {
@@ -933,22 +1060,6 @@ async function toggleTask(t) {
 
 // ---- data load + realtime ----
 
-async function seedDefaults() {
-  for (let i = 0; i < DEFAULT_SEED.length; i++) {
-    const def = DEFAULT_SEED[i];
-    const { data: catRow, error: catErr } = await client.from(CATEGORIES_TABLE)
-      .insert({ room, icon: def.icon, name: def.name, sort_order: i }).select().single();
-    if (catErr || !catRow) { console.error(catErr); continue; }
-    const rows = [];
-    def.required.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "required", label, sort_order: idx }));
-    def.optional.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "optional", label, sort_order: idx }));
-    if (rows.length) {
-      const { error: taskErr } = await client.from(TASKS_TABLE).insert(rows);
-      if (taskErr) console.error(taskErr);
-    }
-  }
-}
-
 async function loadInitialData() {
   const [{ data: cats, error: catErr }, { data: tsk, error: taskErr }] = await Promise.all([
     client.from(CATEGORIES_TABLE).select("*").eq("room", room),
@@ -958,17 +1069,6 @@ async function loadInitialData() {
   if (taskErr) console.error(taskErr);
   categories = cats || [];
   tasks = tsk || [];
-
-  if (categories.length === 0) {
-    await seedDefaults();
-    const [{ data: cats2 }, { data: tsk2 }] = await Promise.all([
-      client.from(CATEGORIES_TABLE).select("*").eq("room", room),
-      client.from(TASKS_TABLE).select("*").eq("room", room)
-    ]);
-    categories = cats2 || [];
-    tasks = tsk2 || [];
-  }
-
   renderApp();
 }
 
@@ -1047,6 +1147,10 @@ function initRoomUI() {
     });
   });
   document.getElementById("playerLabel").textContent = playerName ? `你是: ${playerName}` : "";
+  document.getElementById("templateBtn").addEventListener("click", () => {
+    templatePanelOpen = !templatePanelOpen;
+    renderApp();
+  });
 }
 
 function initNameGate() {

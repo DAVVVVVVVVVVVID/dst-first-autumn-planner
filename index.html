@@ -724,7 +724,7 @@ function renderTemplateModal() {
   intro.className = "template-intro";
   intro.textContent = categories.length === 0
     ? "这个房间还没有任务卡片,选一个模板快速开始:"
-    : "选一个模板,把它的卡片追加到当前房间(不会覆盖已有卡片):";
+    : "选一个模板会替换当前房间的所有卡片。如果不想丢失现有内容,先在下面把它保存成模板:";
   body.appendChild(intro);
 
   const grid = document.createElement("div");
@@ -781,8 +781,15 @@ function buildTemplateCard(tpl) {
   btn.type = "button";
   btn.textContent = "使用此模板";
   btn.addEventListener("click", async () => {
+    if (categories.length > 0) {
+      const proceed = confirm(
+        `使用「${tpl.name}」会先清空当前房间里的所有卡片和任务,再替换成这个模板的内容。\n\n` +
+        `如果还没有把当前内容保存成模板,清空后将无法恢复。要继续吗?`
+      );
+      if (!proceed) return;
+    }
     btn.disabled = true;
-    btn.textContent = "添加中...";
+    btn.textContent = "替换中...";
     await applyTemplateCategories((tpl.data && tpl.data.categories) || []);
     closeTemplateModal();
   });
@@ -871,11 +878,18 @@ async function saveCurrentAsTemplate(icon, name, description) {
 }
 
 async function applyTemplateCategories(categoryDefs) {
-  let sortBase = categories.length ? Math.max(...categories.map(c => c.sort_order)) + 1 : 0;
+  if (categories.length > 0) {
+    const { error: delErr } = await client.from(CATEGORIES_TABLE).delete().eq("room", room);
+    if (delErr) { reportError("清空当前房间", delErr); return; }
+    categories = [];
+    tasks = [];
+    renderApp();
+  }
+
   for (let i = 0; i < categoryDefs.length; i++) {
     const def = categoryDefs[i];
     const { data: catRow, error } = await client.from(CATEGORIES_TABLE)
-      .insert({ room, icon: def.icon, name: def.name, sort_order: sortBase + i }).select().single();
+      .insert({ room, icon: def.icon, name: def.name, sort_order: i }).select().single();
     if (error || !catRow) { reportError("应用模板", error); continue; }
     categories.push(catRow);
     const rows = [];

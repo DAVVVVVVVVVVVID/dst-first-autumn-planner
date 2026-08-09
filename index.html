@@ -700,14 +700,14 @@ async function applyTemplate(template) {
     const def = template.categories[i];
     const { data: catRow, error } = await client.from(CATEGORIES_TABLE)
       .insert({ room, icon: def.icon, name: def.name, sort_order: sortBase + i }).select().single();
-    if (error || !catRow) { console.error(error); continue; }
+    if (error || !catRow) { reportError("应用模板", error); continue; }
     categories.push(catRow);
     const rows = [];
     def.required.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "required", label, sort_order: idx }));
     def.optional.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "optional", label, sort_order: idx }));
     if (rows.length) {
       const { data: taskRows, error: taskErr } = await client.from(TASKS_TABLE).insert(rows).select();
-      if (taskErr) console.error(taskErr);
+      if (taskErr) reportError("应用模板(添加任务)", taskErr);
       else if (taskRows) tasks.push(...taskRows);
     }
   }
@@ -987,13 +987,22 @@ function buildAddCategoryCard() {
   return card;
 }
 
+function reportError(action, error) {
+  console.error(action, error);
+  alert(
+    `${action}失败: ${error && error.message ? error.message : error}\n\n` +
+    `最常见原因是 Supabase 里还没建好 categories / tasks 表,或者行级安全策略(RLS)没允许写入。` +
+    `请检查 supabase_setup.sql 是否已在 Supabase 的 SQL Editor 里成功执行。`
+  );
+}
+
 // ---- CRUD: categories ----
 
 async function addCategory(icon, name) {
   const sortOrder = categories.length ? Math.max(...categories.map(c => c.sort_order)) + 1 : 0;
   const { data, error } = await client.from(CATEGORIES_TABLE)
     .insert({ room, icon, name, sort_order: sortOrder }).select().single();
-  if (error) { console.error(error); renderApp(); return; }
+  if (error) { reportError("新建分类", error); renderApp(); return; }
   categories.push(data);
   renderApp();
 }
@@ -1001,7 +1010,7 @@ async function addCategory(icon, name) {
 async function updateCategory(id, patch) {
   const { data, error } = await client.from(CATEGORIES_TABLE)
     .update(patch).eq("id", id).select().single();
-  if (error) { console.error(error); renderApp(); return; }
+  if (error) { reportError("更新分类", error); renderApp(); return; }
   const idx = categories.findIndex(c => c.id === id);
   if (idx >= 0) categories[idx] = data;
   renderApp();
@@ -1010,7 +1019,7 @@ async function updateCategory(id, patch) {
 async function deleteCategory(cat) {
   if (!confirm(`确定删除分类「${cat.name}」吗?其中的所有任务也会一并删除。`)) return;
   const { error } = await client.from(CATEGORIES_TABLE).delete().eq("id", cat.id);
-  if (error) { console.error(error); return; }
+  if (error) { reportError("删除分类", error); return; }
   categories = categories.filter(c => c.id !== cat.id);
   tasks = tasks.filter(t => t.category_id !== cat.id);
   renderApp();
@@ -1023,7 +1032,7 @@ async function addTask(categoryId, grp, label) {
   const sortOrder = siblings.length ? Math.max(...siblings.map(t => t.sort_order)) + 1 : 0;
   const { data, error } = await client.from(TASKS_TABLE)
     .insert({ room, category_id: categoryId, grp, label, sort_order: sortOrder }).select().single();
-  if (error) { console.error(error); renderApp(); return; }
+  if (error) { reportError("添加任务", error); renderApp(); return; }
   tasks.push(data);
   renderApp();
 }
@@ -1031,7 +1040,7 @@ async function addTask(categoryId, grp, label) {
 async function updateTaskLabel(id, label) {
   const { data, error } = await client.from(TASKS_TABLE)
     .update({ label, updated_at: new Date().toISOString() }).eq("id", id).select().single();
-  if (error) { console.error(error); renderApp(); return; }
+  if (error) { reportError("更新任务", error); renderApp(); return; }
   const idx = tasks.findIndex(t => t.id === id);
   if (idx >= 0) tasks[idx] = data;
   renderApp();
@@ -1040,7 +1049,7 @@ async function updateTaskLabel(id, label) {
 async function deleteTask(t) {
   if (!confirm(`确定删除任务「${t.label}」吗?`)) return;
   const { error } = await client.from(TASKS_TABLE).delete().eq("id", t.id);
-  if (error) { console.error(error); return; }
+  if (error) { reportError("删除任务", error); return; }
   tasks = tasks.filter(x => x.id !== t.id);
   renderApp();
 }
@@ -1055,7 +1064,7 @@ async function toggleTask(t) {
   if (idx >= 0) tasks[idx] = { ...tasks[idx], ...patch };
   renderApp();
   const { error } = await client.from(TASKS_TABLE).update(patch).eq("id", t.id);
-  if (error) console.error(error);
+  if (error) reportError("更新任务状态", error);
 }
 
 // ---- data load + realtime ----
@@ -1065,8 +1074,8 @@ async function loadInitialData() {
     client.from(CATEGORIES_TABLE).select("*").eq("room", room),
     client.from(TASKS_TABLE).select("*").eq("room", room)
   ]);
-  if (catErr) console.error(catErr);
-  if (taskErr) console.error(taskErr);
+  if (catErr) reportError("加载分类", catErr);
+  if (taskErr) reportError("加载任务", taskErr);
   categories = cats || [];
   tasks = tsk || [];
   renderApp();

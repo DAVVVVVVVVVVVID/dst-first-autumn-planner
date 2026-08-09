@@ -189,7 +189,6 @@
     transition: width 0.4s ease;
   }
   .bar-fill.required { background: linear-gradient(90deg, #d9663f, var(--red)); }
-  .bar-fill.small { }
 
   .categories {
     display: grid;
@@ -208,14 +207,64 @@
     padding: 14px 18px 10px;
     border-bottom: 1px dashed var(--border);
   }
-  .cat-header .cat-name {
-    font-size: 1.05rem;
-    font-weight: 700;
+  .cat-top-row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     margin-bottom: 8px;
   }
+  .cat-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .cat-actions, .task-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .task-actions { opacity: 0.55; }
+  .task-item:hover .task-actions { opacity: 1; }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 3px 5px;
+    border-radius: 6px;
+    color: var(--ink-soft);
+    line-height: 1;
+  }
+  .icon-btn:hover { background: rgba(61,43,30,0.12); color: var(--ink); }
+
+  .cat-edit-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .cat-icon-input {
+    width: 46px;
+    text-align: center;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  .cat-name-input {
+    flex: 1;
+    min-width: 100px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  .add-cat-form { padding: 16px 18px; }
+
   .cat-header .cat-sub {
     font-size: 0.78rem;
     color: var(--ink-soft);
@@ -245,6 +294,7 @@
     transition: background 0.15s;
   }
   .task-item:hover { background: rgba(201,117,47,0.1); }
+  .task-item.editing { background: rgba(201,117,47,0.08); cursor: default; }
   .task-item .box {
     width: 20px;
     height: 20px;
@@ -275,6 +325,59 @@
     padding: 2px 7px;
     border-radius: 999px;
   }
+  .task-edit-input {
+    flex: 1;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+
+  .add-task-row {
+    font-size: 0.82rem;
+    color: var(--orange-deep);
+    cursor: pointer;
+    padding: 6px 4px;
+    font-weight: 600;
+  }
+  .add-task-row:hover { text-decoration: underline; }
+  .add-task-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 0;
+  }
+  .add-task-input {
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+
+  .add-cat-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+  }
+  .add-cat-trigger {
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: 2px dashed var(--border);
+    background: transparent;
+    box-shadow: none;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .add-cat-trigger:hover { color: var(--orange-deep); border-color: var(--orange); }
 
   .name-gate {
     position: fixed;
@@ -378,67 +481,50 @@
 <script>
 const SUPABASE_URL = "https://tldmpaumprctfpqzbgga.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cps3c_C2OJ4ph6R81PEang_o8SvPi9J";
-const TABLE = "task_state";
+const CATEGORIES_TABLE = "categories";
+const TASKS_TABLE = "tasks";
 
-const CATEGORIES = [
+const DEFAULT_SEED = [
   {
-    id: "explore", icon: "🗺️", name: "探索地图",
-    required: [
-      ["pig-king", "猪王"], ["cow-herd", "牛群"], ["grass-field", "草原"],
-      ["spider-nest", "蜘蛛巢"], ["rock-area", "岩石区域"], ["rabbit-area", "兔子区"],
-      ["clockwork", "发条怪物"], ["walrus-plains", "海象平原"], ["glommer", "格罗姆"]
-    ],
-    optional: [
-      ["swamp", "沼泽"], ["graveyard", "墓地"], ["beehive", "蜂巢"], ["cave", "洞穴"]
-    ]
+    icon: "🗺️", name: "探索地图",
+    required: ["猪王", "牛群", "草原", "蜘蛛巢", "岩石区域", "兔子区", "发条怪物", "海象平原", "格罗姆"],
+    optional: ["沼泽", "墓地", "蜂巢", "洞穴"]
   },
   {
-    id: "resource", icon: "🌱", name: "资源移植",
-    required: [
-      ["berry-bush", "浆果丛移植"], ["sapling", "树枝移植"], ["tree-planting", "种树"],
-      ["spider-nest-3", "蜘蛛巢 ×3"], ["pig-house-6", "猪人房 ×6"], ["birdcage", "鸟笼"]
-    ],
-    optional: [
-      ["grass-transplant", "草移植(有草原可以不进行)"], ["beebox", "蜂箱"], ["bunnyman-house", "兔人房"]
-    ]
+    icon: "🌱", name: "资源移植",
+    required: ["浆果丛移植", "树枝移植", "种树", "蜘蛛巢 ×3", "猪人房 ×6", "鸟笼"],
+    optional: ["草移植(有草原可以不进行)", "蜂箱", "兔人房"]
   },
   {
-    id: "base", icon: "🏠", name: "家具必需品",
-    required: [
-      ["firepit", "火坑"], ["drying-rack", "晾肉架"], ["science-machine", "一本科技"],
-      ["alchemy-engine", "二本科技"], ["crockpot-3", "烹饪锅 ×3"], ["icebox-3", "冰箱 ×3"],
-      ["tent", "帐篷"], ["chests", "箱子及其分类"]
-    ],
-    optional: [
-      ["sea-tech", "海上科技"]
-    ]
+    icon: "🏠", name: "家具必需品",
+    required: ["火坑", "晾肉架", "一本科技", "二本科技", "烹饪锅 ×3", "冰箱 ×3", "帐篷", "箱子及其分类"],
+    optional: ["海上科技"]
   },
   {
-    id: "gear", icon: "⚔️", name: "装备",
-    required: [
-      ["pig-hat", "猪皮头套"]
-    ],
-    optional: [
-      ["miner-hat", "矿工帽"], ["lantern", "提灯"]
-    ]
+    icon: "⚔️", name: "装备",
+    required: ["猪皮头套"],
+    optional: ["矿工帽", "提灯"]
   },
   {
-    id: "winter", icon: "❄️", name: "过冬准备",
-    required: [
-      ["beefalo-hat-3", "牛角帽 ×3"], ["heat-stone-6", "暖石 ×6"], ["fuel", "充足燃料"]
-    ],
+    icon: "❄️", name: "过冬准备",
+    required: ["牛角帽 ×3", "暖石 ×6", "充足燃料"],
     optional: []
   }
 ];
 
-const state = {}; // task_id -> {checked, checked_by}
+let categories = []; // {id, room, icon, name, sort_order}
+let tasks = [];      // {id, room, category_id, grp, label, checked, checked_by, sort_order}
 let playerName = localStorage.getItem("dst_planner_name") || "";
 let room = "";
 let channel = null;
 let client = null;
 const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Math.random());
 
-function taskFullId(catId, key) { return catId + "--" + key; }
+// transient UI edit state (not persisted)
+let editingCategoryId = null;
+let editingTaskId = null;
+let addingTaskGroup = null; // "<categoryId>:<grp>"
+let addingCategory = false;
 
 function getOrCreateRoom() {
   const url = new URL(window.location.href);
@@ -456,33 +542,26 @@ function setStatus(online) {
   document.getElementById("statusText").textContent = online ? "实时同步中" : "离线 / 连接中";
 }
 
+function tasksFor(categoryId, grp) {
+  return tasks
+    .filter(t => t.category_id === categoryId && t.grp === grp)
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
 function computeProgress() {
-  let reqTotal = 0, reqDone = 0, allTotal = 0, allDone = 0;
-  CATEGORIES.forEach(cat => {
-    cat.required.forEach(([key]) => {
-      reqTotal++; allTotal++;
-      const s = state[taskFullId(cat.id, key)];
-      if (s && s.checked) { reqDone++; allDone++; }
-    });
-    cat.optional.forEach(([key]) => {
-      allTotal++;
-      const s = state[taskFullId(cat.id, key)];
-      if (s && s.checked) { allDone++; }
-    });
-  });
+  const required = tasks.filter(t => t.grp === "required");
+  const reqDone = required.filter(t => t.checked).length;
+  const allDone = tasks.filter(t => t.checked).length;
   return {
-    reqPct: reqTotal ? Math.round((reqDone / reqTotal) * 100) : 0,
-    allPct: allTotal ? Math.round((allDone / allTotal) * 100) : 0
+    reqPct: required.length ? Math.round((reqDone / required.length) * 100) : 0,
+    allPct: tasks.length ? Math.round((allDone / tasks.length) * 100) : 0
   };
 }
 
-function catProgress(cat) {
-  const total = cat.required.length;
-  const done = cat.required.filter(([key]) => {
-    const s = state[taskFullId(cat.id, key)];
-    return s && s.checked;
-  }).length;
-  return total ? Math.round((done / total) * 100) : 0;
+function catProgress(categoryId) {
+  const req = tasks.filter(t => t.category_id === categoryId && t.grp === "required");
+  const done = req.filter(t => t.checked).length;
+  return req.length ? Math.round((done / req.length) * 100) : 0;
 }
 
 function renderStats() {
@@ -493,123 +572,429 @@ function renderStats() {
   document.getElementById("totalBar").style.width = allPct + "%";
 }
 
+function makeIconBtn(symbol, title, onClick) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "icon-btn";
+  btn.textContent = symbol;
+  btn.title = title;
+  btn.addEventListener("click", e => { e.stopPropagation(); onClick(); });
+  return btn;
+}
+
+function renderApp() {
+  renderCategoriesGrid();
+  renderStats();
+}
+
+function renderCategoriesGrid() {
+  const wrap = document.getElementById("categories");
+  wrap.innerHTML = "";
+  [...categories]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .forEach(cat => wrap.appendChild(buildCategoryCard(cat)));
+  wrap.appendChild(buildAddCategoryCard());
+}
+
 function buildCategoryCard(cat) {
   const card = document.createElement("div");
   card.className = "cat-card";
 
   const header = document.createElement("div");
   header.className = "cat-header";
-  header.innerHTML = `
-    <div class="cat-name">${cat.icon} ${cat.name}</div>
-    <div class="bar-track"><div class="bar-fill" id="bar-${cat.id}" style="width:0%"></div></div>
-    <div class="cat-sub" id="sub-${cat.id}"></div>
-  `;
-  card.appendChild(header);
 
-  function buildGroup(label, items, optional) {
-    if (!items.length) return;
-    const group = document.createElement("div");
-    group.className = "task-group";
-    const lbl = document.createElement("div");
-    lbl.className = "group-label" + (optional ? " optional" : "");
-    lbl.textContent = optional ? "可选" : "必须";
-    group.appendChild(lbl);
-    const ul = document.createElement("ul");
-    ul.className = "task-list";
-    items.forEach(([key, text]) => {
-      const id = taskFullId(cat.id, key);
-      const li = document.createElement("li");
-      li.className = "task-item";
-      li.dataset.taskId = id;
-      li.innerHTML = `<span class="box">✓</span><span class="label">${text}</span><span class="by"></span>`;
-      li.addEventListener("click", () => toggleTask(id));
-      ul.appendChild(li);
-    });
-    group.appendChild(ul);
-    card.appendChild(group);
+  const topRow = document.createElement("div");
+  topRow.className = "cat-top-row";
+
+  if (editingCategoryId === cat.id) {
+    topRow.appendChild(buildCategoryEditForm(cat));
+  } else {
+    const nameEl = document.createElement("div");
+    nameEl.className = "cat-name";
+    nameEl.textContent = `${cat.icon} ${cat.name}`;
+    topRow.appendChild(nameEl);
+
+    const actions = document.createElement("div");
+    actions.className = "cat-actions";
+    actions.appendChild(makeIconBtn("✏️", "编辑分类", () => { editingCategoryId = cat.id; renderApp(); }));
+    actions.appendChild(makeIconBtn("🗑️", "删除分类", () => deleteCategory(cat)));
+    topRow.appendChild(actions);
+
+    header.appendChild(topRow);
+
+    const bar = document.createElement("div");
+    bar.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = catProgress(cat.id) + "%";
+    bar.appendChild(fill);
+    header.appendChild(bar);
+
+    const sub = document.createElement("div");
+    sub.className = "cat-sub";
+    sub.textContent = `必须任务 ${catProgress(cat.id)}%`;
+    header.appendChild(sub);
+
+    card.appendChild(header);
+    card.appendChild(buildGroup(cat, "required", "必须", false));
+    card.appendChild(buildGroup(cat, "optional", "可选", true));
+    return card;
   }
 
-  buildGroup("必须", cat.required, false);
-  buildGroup("可选", cat.optional, true);
+  header.appendChild(topRow);
+  card.appendChild(header);
+  card.appendChild(buildGroup(cat, "required", "必须", false));
+  card.appendChild(buildGroup(cat, "optional", "可选", true));
+  return card;
+}
+
+function buildCategoryEditForm(cat) {
+  const form = document.createElement("div");
+  form.className = "cat-edit-form";
+
+  const iconInput = document.createElement("input");
+  iconInput.type = "text";
+  iconInput.className = "cat-icon-input";
+  iconInput.value = cat.icon;
+  iconInput.maxLength = 4;
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "cat-name-input";
+  nameInput.value = cat.name;
+  nameInput.maxLength = 24;
+
+  const save = async () => {
+    const icon = iconInput.value.trim() || "📋";
+    const name = nameInput.value.trim();
+    if (!name) return;
+    editingCategoryId = null;
+    await updateCategory(cat.id, { icon, name });
+  };
+  const cancel = () => { editingCategoryId = null; renderApp(); };
+
+  nameInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") cancel();
+  });
+  iconInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") cancel();
+  });
+
+  form.appendChild(iconInput);
+  form.appendChild(nameInput);
+  form.appendChild(makeIconBtn("✔", "保存", save));
+  form.appendChild(makeIconBtn("✕", "取消", cancel));
+  setTimeout(() => nameInput.focus(), 0);
+  return form;
+}
+
+function buildGroup(cat, grp, label, optional) {
+  const group = document.createElement("div");
+  group.className = "task-group";
+
+  const lbl = document.createElement("div");
+  lbl.className = "group-label" + (optional ? " optional" : "");
+  lbl.textContent = label;
+  group.appendChild(lbl);
+
+  const ul = document.createElement("ul");
+  ul.className = "task-list";
+  tasksFor(cat.id, grp).forEach(t => ul.appendChild(buildTaskItem(t)));
+  group.appendChild(ul);
+
+  const addKey = cat.id + ":" + grp;
+  if (addingTaskGroup === addKey) {
+    group.appendChild(buildAddTaskForm(cat, grp));
+  } else {
+    const addRow = document.createElement("div");
+    addRow.className = "add-task-row";
+    addRow.textContent = "+ 添加任务";
+    addRow.addEventListener("click", () => { addingTaskGroup = addKey; renderApp(); });
+    group.appendChild(addRow);
+  }
+
+  return group;
+}
+
+function buildTaskItem(t) {
+  const li = document.createElement("li");
+
+  if (editingTaskId === t.id) {
+    li.className = "task-item editing";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "task-edit-input";
+    input.value = t.label;
+    input.maxLength = 60;
+
+    const save = async () => {
+      const label = input.value.trim();
+      editingTaskId = null;
+      if (!label) { renderApp(); return; }
+      await updateTaskLabel(t.id, label);
+    };
+    const cancel = () => { editingTaskId = null; renderApp(); };
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") cancel();
+    });
+
+    li.appendChild(input);
+    li.appendChild(makeIconBtn("✔", "保存", save));
+    li.appendChild(makeIconBtn("✕", "取消", cancel));
+    setTimeout(() => input.focus(), 0);
+    return li;
+  }
+
+  li.className = "task-item" + (t.checked ? " done" : "");
+
+  const box = document.createElement("span");
+  box.className = "box";
+  box.textContent = "✓";
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "label";
+  labelEl.textContent = t.label;
+
+  const by = document.createElement("span");
+  by.className = "by";
+  by.textContent = t.checked && t.checked_by ? t.checked_by : "";
+
+  const actions = document.createElement("span");
+  actions.className = "task-actions";
+  actions.appendChild(makeIconBtn("✏️", "编辑", () => { editingTaskId = t.id; renderApp(); }));
+  actions.appendChild(makeIconBtn("🗑️", "删除", () => deleteTask(t)));
+
+  li.appendChild(box);
+  li.appendChild(labelEl);
+  li.appendChild(by);
+  li.appendChild(actions);
+  li.addEventListener("click", () => toggleTask(t));
+  return li;
+}
+
+function buildAddTaskForm(cat, grp) {
+  const row = document.createElement("div");
+  row.className = "add-task-form";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "add-task-input";
+  input.placeholder = "任务名称";
+  input.maxLength = 60;
+
+  const save = async () => {
+    const label = input.value.trim();
+    addingTaskGroup = null;
+    if (!label) { renderApp(); return; }
+    await addTask(cat.id, grp, label);
+  };
+  const cancel = () => { addingTaskGroup = null; renderApp(); };
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") cancel();
+  });
+
+  row.appendChild(input);
+  row.appendChild(makeIconBtn("✔", "添加", save));
+  row.appendChild(makeIconBtn("✕", "取消", cancel));
+  setTimeout(() => input.focus(), 0);
+  return row;
+}
+
+function buildAddCategoryCard() {
+  const card = document.createElement("div");
+  card.className = "cat-card add-cat-card";
+
+  if (addingCategory) {
+    const form = document.createElement("div");
+    form.className = "cat-edit-form add-cat-form";
+
+    const iconInput = document.createElement("input");
+    iconInput.type = "text";
+    iconInput.className = "cat-icon-input";
+    iconInput.placeholder = "🏷️";
+    iconInput.maxLength = 4;
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "cat-name-input";
+    nameInput.placeholder = "分类名称";
+    nameInput.maxLength = 24;
+
+    const save = async () => {
+      const icon = iconInput.value.trim() || "📋";
+      const name = nameInput.value.trim();
+      addingCategory = false;
+      if (!name) { renderApp(); return; }
+      await addCategory(icon, name);
+    };
+    const cancel = () => { addingCategory = false; renderApp(); };
+
+    nameInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") cancel();
+    });
+    iconInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") cancel();
+    });
+
+    form.appendChild(iconInput);
+    form.appendChild(nameInput);
+    form.appendChild(makeIconBtn("✔", "添加", save));
+    form.appendChild(makeIconBtn("✕", "取消", cancel));
+    card.appendChild(form);
+    setTimeout(() => nameInput.focus(), 0);
+  } else {
+    const trigger = document.createElement("div");
+    trigger.className = "add-cat-trigger";
+    trigger.textContent = "+ 新建分类";
+    trigger.addEventListener("click", () => { addingCategory = true; renderApp(); });
+    card.appendChild(trigger);
+  }
 
   return card;
 }
 
-function renderCategories() {
-  const wrap = document.getElementById("categories");
-  wrap.innerHTML = "";
-  CATEGORIES.forEach(cat => wrap.appendChild(buildCategoryCard(cat)));
+// ---- CRUD: categories ----
+
+async function addCategory(icon, name) {
+  const sortOrder = categories.length ? Math.max(...categories.map(c => c.sort_order)) + 1 : 0;
+  const { data, error } = await client.from(CATEGORIES_TABLE)
+    .insert({ room, icon, name, sort_order: sortOrder }).select().single();
+  if (error) { console.error(error); renderApp(); return; }
+  categories.push(data);
+  renderApp();
 }
 
-function renderTaskItem(fullId) {
-  const li = document.querySelector(`.task-item[data-task-id="${fullId}"]`);
-  if (!li) return;
-  const s = state[fullId];
-  const done = !!(s && s.checked);
-  li.classList.toggle("done", done);
-  const by = li.querySelector(".by");
-  by.textContent = done && s.checked_by ? s.checked_by : "";
+async function updateCategory(id, patch) {
+  const { data, error } = await client.from(CATEGORIES_TABLE)
+    .update(patch).eq("id", id).select().single();
+  if (error) { console.error(error); renderApp(); return; }
+  const idx = categories.findIndex(c => c.id === id);
+  if (idx >= 0) categories[idx] = data;
+  renderApp();
 }
 
-function renderAll() {
-  Object.keys(state).forEach(renderTaskItem);
-  renderStats();
-  CATEGORIES.forEach(cat => {
-    const pct = catProgress(cat);
-    const bar = document.getElementById(`bar-${cat.id}`);
-    const sub = document.getElementById(`sub-${cat.id}`);
-    if (bar) bar.style.width = pct + "%";
-    if (sub) sub.textContent = `必须任务 ${pct}%`;
-  });
+async function deleteCategory(cat) {
+  if (!confirm(`确定删除分类「${cat.name}」吗?其中的所有任务也会一并删除。`)) return;
+  const { error } = await client.from(CATEGORIES_TABLE).delete().eq("id", cat.id);
+  if (error) { console.error(error); return; }
+  categories = categories.filter(c => c.id !== cat.id);
+  tasks = tasks.filter(t => t.category_id !== cat.id);
+  renderApp();
 }
 
-async function toggleTask(fullId) {
-  const current = state[fullId] || { checked: false, checked_by: null };
-  const next = {
-    checked: !current.checked,
-    checked_by: !current.checked ? playerName : null
-  };
-  state[fullId] = next;
-  renderTaskItem(fullId);
-  renderStats();
-  updateCatBarFor(fullId);
+// ---- CRUD: tasks ----
 
-  const [catId, key] = splitFullId(fullId);
-  await client.from(TABLE).upsert({
-    room,
-    task_id: fullId,
-    checked: next.checked,
-    checked_by: next.checked_by,
+async function addTask(categoryId, grp, label) {
+  const siblings = tasksFor(categoryId, grp);
+  const sortOrder = siblings.length ? Math.max(...siblings.map(t => t.sort_order)) + 1 : 0;
+  const { data, error } = await client.from(TASKS_TABLE)
+    .insert({ room, category_id: categoryId, grp, label, sort_order: sortOrder }).select().single();
+  if (error) { console.error(error); renderApp(); return; }
+  tasks.push(data);
+  renderApp();
+}
+
+async function updateTaskLabel(id, label) {
+  const { data, error } = await client.from(TASKS_TABLE)
+    .update({ label, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+  if (error) { console.error(error); renderApp(); return; }
+  const idx = tasks.findIndex(t => t.id === id);
+  if (idx >= 0) tasks[idx] = data;
+  renderApp();
+}
+
+async function deleteTask(t) {
+  if (!confirm(`确定删除任务「${t.label}」吗?`)) return;
+  const { error } = await client.from(TASKS_TABLE).delete().eq("id", t.id);
+  if (error) { console.error(error); return; }
+  tasks = tasks.filter(x => x.id !== t.id);
+  renderApp();
+}
+
+async function toggleTask(t) {
+  const patch = {
+    checked: !t.checked,
+    checked_by: !t.checked ? playerName : null,
     updated_at: new Date().toISOString()
-  }, { onConflict: "room,task_id" });
+  };
+  const idx = tasks.findIndex(x => x.id === t.id);
+  if (idx >= 0) tasks[idx] = { ...tasks[idx], ...patch };
+  renderApp();
+  const { error } = await client.from(TASKS_TABLE).update(patch).eq("id", t.id);
+  if (error) console.error(error);
 }
 
-function splitFullId(fullId) {
-  const idx = fullId.indexOf("--");
-  return [fullId.slice(0, idx), fullId.slice(idx + 2)];
-}
+// ---- data load + realtime ----
 
-function updateCatBarFor(fullId) {
-  const [catId] = splitFullId(fullId);
-  const cat = CATEGORIES.find(c => c.id === catId);
-  if (!cat) return;
-  const pct = catProgress(cat);
-  const bar = document.getElementById(`bar-${cat.id}`);
-  const sub = document.getElementById(`sub-${cat.id}`);
-  if (bar) bar.style.width = pct + "%";
-  if (sub) sub.textContent = `必须任务 ${pct}%`;
-}
-
-async function loadInitialState() {
-  const { data, error } = await client.from(TABLE).select("*").eq("room", room);
-  if (error) {
-    console.error(error);
-    return;
+async function seedDefaults() {
+  for (let i = 0; i < DEFAULT_SEED.length; i++) {
+    const def = DEFAULT_SEED[i];
+    const { data: catRow, error: catErr } = await client.from(CATEGORIES_TABLE)
+      .insert({ room, icon: def.icon, name: def.name, sort_order: i }).select().single();
+    if (catErr || !catRow) { console.error(catErr); continue; }
+    const rows = [];
+    def.required.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "required", label, sort_order: idx }));
+    def.optional.forEach((label, idx) => rows.push({ room, category_id: catRow.id, grp: "optional", label, sort_order: idx }));
+    if (rows.length) {
+      const { error: taskErr } = await client.from(TASKS_TABLE).insert(rows);
+      if (taskErr) console.error(taskErr);
+    }
   }
-  data.forEach(row => {
-    state[row.task_id] = { checked: row.checked, checked_by: row.checked_by };
-  });
-  renderAll();
+}
+
+async function loadInitialData() {
+  const [{ data: cats, error: catErr }, { data: tsk, error: taskErr }] = await Promise.all([
+    client.from(CATEGORIES_TABLE).select("*").eq("room", room),
+    client.from(TASKS_TABLE).select("*").eq("room", room)
+  ]);
+  if (catErr) console.error(catErr);
+  if (taskErr) console.error(taskErr);
+  categories = cats || [];
+  tasks = tsk || [];
+
+  if (categories.length === 0) {
+    await seedDefaults();
+    const [{ data: cats2 }, { data: tsk2 }] = await Promise.all([
+      client.from(CATEGORIES_TABLE).select("*").eq("room", room),
+      client.from(TASKS_TABLE).select("*").eq("room", room)
+    ]);
+    categories = cats2 || [];
+    tasks = tsk2 || [];
+  }
+
+  renderApp();
+}
+
+function applyCategoryChange(payload) {
+  const row = payload.new && Object.keys(payload.new).length ? payload.new : payload.old;
+  if (!row) return;
+  if (payload.eventType === "DELETE") {
+    categories = categories.filter(c => c.id !== row.id);
+    tasks = tasks.filter(t => t.category_id !== row.id);
+  } else {
+    const idx = categories.findIndex(c => c.id === row.id);
+    if (idx >= 0) categories[idx] = row; else categories.push(row);
+  }
+  renderApp();
+}
+
+function applyTaskChange(payload) {
+  const row = payload.new && Object.keys(payload.new).length ? payload.new : payload.old;
+  if (!row) return;
+  if (payload.eventType === "DELETE") {
+    tasks = tasks.filter(t => t.id !== row.id);
+  } else {
+    const idx = tasks.findIndex(t => t.id === row.id);
+    if (idx >= 0) tasks[idx] = row; else tasks.push(row);
+  }
+  renderApp();
 }
 
 function renderPresence(presenceState) {
@@ -642,21 +1027,9 @@ function trackPresenceIfReady() {
 
 function subscribeRealtime() {
   channel = client.channel(`room-${room}`, { config: { presence: { key: sessionId } } })
-    .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: `room=eq.${room}` }, payload => {
-      const row = payload.new && Object.keys(payload.new).length ? payload.new : payload.old;
-      if (!row) return;
-      if (payload.eventType === "DELETE") {
-        delete state[row.task_id];
-      } else {
-        state[row.task_id] = { checked: row.checked, checked_by: row.checked_by };
-      }
-      renderTaskItem(row.task_id);
-      renderStats();
-      updateCatBarFor(row.task_id);
-    })
-    .on("presence", { event: "sync" }, () => {
-      renderPresence(channel.presenceState());
-    })
+    .on("postgres_changes", { event: "*", schema: "public", table: CATEGORIES_TABLE, filter: `room=eq.${room}` }, applyCategoryChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: TASKS_TABLE, filter: `room=eq.${room}` }, applyTaskChange)
+    .on("presence", { event: "sync" }, () => { renderPresence(channel.presenceState()); })
     .subscribe(status => {
       setStatus(status === "SUBSCRIBED");
       if (status === "SUBSCRIBED") trackPresenceIfReady();
@@ -702,11 +1075,10 @@ async function main() {
   room = getOrCreateRoom();
   initRoomUI();
   initNameGate();
-  renderCategories();
-  renderAll();
+  renderApp();
 
   client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  await loadInitialState();
+  await loadInitialData();
   subscribeRealtime();
 }
 

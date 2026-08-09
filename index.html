@@ -576,6 +576,7 @@
       <input type="text" id="roomInput" readonly />
       <button class="pill-btn" id="copyLinkBtn">复制邀请链接</button>
       <button class="pill-btn secondary" id="templateBtn">📋 模板</button>
+      <button class="pill-btn secondary" id="clearAllBtn">🗑️ 清空卡片</button>
       <span id="playerLabel"></span>
     </div>
     <div class="online-row" id="onlineRow"></div>
@@ -877,13 +878,28 @@ async function saveCurrentAsTemplate(icon, name, description) {
   renderTemplateModal();
 }
 
+async function clearRoomCards() {
+  const { error } = await client.from(CATEGORIES_TABLE).delete().eq("room", room);
+  if (error) { reportError("清空卡片", error); return false; }
+  categories = [];
+  tasks = [];
+  renderApp();
+  return true;
+}
+
+async function clearAllCards() {
+  if (categories.length === 0) return;
+  const proceed = confirm(
+    "确定清空当前房间的所有卡片和任务吗?\n\n如果还没有保存成模板,清空后将无法恢复。"
+  );
+  if (!proceed) return;
+  await clearRoomCards();
+}
+
 async function applyTemplateCategories(categoryDefs) {
   if (categories.length > 0) {
-    const { error: delErr } = await client.from(CATEGORIES_TABLE).delete().eq("room", room);
-    if (delErr) { reportError("清空当前房间", delErr); return; }
-    categories = [];
-    tasks = [];
-    renderApp();
+    const ok = await clearRoomCards();
+    if (!ok) return;
   }
 
   for (let i = 0; i < categoryDefs.length; i++) {
@@ -1354,6 +1370,7 @@ function initRoomUI() {
   document.getElementById("templateModal").addEventListener("click", e => {
     if (e.target.id === "templateModal") closeTemplateModal();
   });
+  document.getElementById("clearAllBtn").addEventListener("click", clearAllCards);
 }
 
 function initNameGate() {

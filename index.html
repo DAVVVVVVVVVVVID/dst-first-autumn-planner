@@ -111,6 +111,32 @@
     width: 140px;
   }
   .room-row input[type=text]::placeholder { color: #d8c6a8; }
+
+  .online-row {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+  }
+  .online-label { color: #d8c6a8; }
+  .online-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: #f3e4c8;
+  }
+  .online-chip .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #7fbf6a; box-shadow: 0 0 5px #7fbf6a;
+  }
+
   button.pill-btn {
     background: var(--orange);
     color: #fff;
@@ -330,6 +356,7 @@
       <button class="pill-btn" id="copyLinkBtn">复制邀请链接</button>
       <span id="playerLabel"></span>
     </div>
+    <div class="online-row" id="onlineRow"></div>
   </header>
 
   <div class="stats-row">
@@ -409,6 +436,7 @@ let playerName = localStorage.getItem("dst_planner_name") || "";
 let room = "";
 let channel = null;
 let client = null;
+const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Math.random());
 
 function taskFullId(catId, key) { return catId + "--" + key; }
 
@@ -584,8 +612,36 @@ async function loadInitialState() {
   renderAll();
 }
 
+function renderPresence(presenceState) {
+  const names = new Set();
+  Object.values(presenceState).forEach(entries => {
+    entries.forEach(e => { if (e.name) names.add(e.name); });
+  });
+  const row = document.getElementById("onlineRow");
+  row.innerHTML = "";
+  const label = document.createElement("span");
+  label.className = "online-label";
+  label.textContent = names.size ? `在线 (${names.size}):` : "当前没有人在线";
+  row.appendChild(label);
+  names.forEach(n => {
+    const chip = document.createElement("span");
+    chip.className = "online-chip";
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(n));
+    row.appendChild(chip);
+  });
+}
+
+function trackPresenceIfReady() {
+  if (channel && playerName) {
+    channel.track({ name: playerName, online_at: new Date().toISOString() });
+  }
+}
+
 function subscribeRealtime() {
-  channel = client.channel(`room-${room}`)
+  channel = client.channel(`room-${room}`, { config: { presence: { key: sessionId } } })
     .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: `room=eq.${room}` }, payload => {
       const row = payload.new && Object.keys(payload.new).length ? payload.new : payload.old;
       if (!row) return;
@@ -598,8 +654,12 @@ function subscribeRealtime() {
       renderStats();
       updateCatBarFor(row.task_id);
     })
+    .on("presence", { event: "sync" }, () => {
+      renderPresence(channel.presenceState());
+    })
     .subscribe(status => {
       setStatus(status === "SUBSCRIBED");
+      if (status === "SUBSCRIBED") trackPresenceIfReady();
     });
 }
 
@@ -631,6 +691,7 @@ function initNameGate() {
     localStorage.setItem("dst_planner_name", v);
     document.getElementById("playerLabel").textContent = `你是: ${playerName}`;
     gate.classList.add("hidden");
+    trackPresenceIfReady();
   }
   submit.addEventListener("click", commit);
   input.addEventListener("keydown", e => { if (e.key === "Enter") commit(); });

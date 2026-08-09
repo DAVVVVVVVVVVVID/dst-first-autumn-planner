@@ -950,6 +950,7 @@ function buildCategoryCard(cat) {
     const actions = document.createElement("div");
     actions.className = "cat-actions";
     actions.appendChild(makeIconBtn("✏️", "编辑分类", () => { editingCategoryId = cat.id; renderApp(); }));
+    actions.appendChild(makeIconBtn("🧹", "清空这个分类下的任务", () => clearCategoryTasks(cat)));
     actions.appendChild(makeIconBtn("🗑️", "删除分类", () => deleteCategory(cat)));
     topRow.appendChild(actions);
 
@@ -1227,6 +1228,16 @@ async function deleteCategory(cat) {
   const { error } = await client.from(CATEGORIES_TABLE).delete().eq("id", cat.id);
   if (error) { reportError("删除分类", error); return; }
   categories = categories.filter(c => c.id !== cat.id);
+  tasks = tasks.filter(t => t.category_id !== cat.id);
+  renderApp();
+}
+
+async function clearCategoryTasks(cat) {
+  const hasTasks = tasks.some(t => t.category_id === cat.id);
+  if (!hasTasks) return;
+  if (!confirm(`确定清空「${cat.name}」里的所有任务吗?分类本身会保留。`)) return;
+  const { error } = await client.from(TASKS_TABLE).delete().eq("category_id", cat.id);
+  if (error) { reportError("清空分类任务", error); return; }
   tasks = tasks.filter(t => t.category_id !== cat.id);
   renderApp();
 }
